@@ -18,7 +18,7 @@ import wikitextparser as wtp
 import os.path
 import re
 from collections import namedtuple
-from wikxtract import wikxtract_from_web
+from wikxtract import WiktiDs
 
 
 class Wiktionary:
@@ -43,14 +43,14 @@ class Wiktionary:
     INFLECTION_ITEM = namedtuple('INFLECTION_ITEM', ['name', 'value'])
     ENTRY = namedtuple('ENTRY', ['term', 'wikitext', 'root_word', 'category', 'inflection_table'])
 
-    def __init__(self):
-        pass
+    def __init__(self, online=False):
+        self.ds = WiktiDs(online)
 
     def query(self, term):
         root_word = ''
         category = ''
         inflection_table = ()
-        wikitext = wikxtract_from_web(term)
+        wikitext = self.ds.get_wikitext(term)
         if wikitext:
             wikitext_parsed = wtp.parse(wikitext)
             root_word, category = self.get_header(wikitext_parsed)
