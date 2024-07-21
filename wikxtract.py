@@ -7,6 +7,29 @@ It is structured in modules that can be extended by extensions, so they can diff
 This script interfaces with the German Wiktionary API
 
 
+# Searching for a word definition
+In the German Wiktionary, each word definition belongs to a section with the wikitext heading:
+    == word ({{Sprache|Deutsch}}) ==
+i.e. the word whose definition follows is surrounded by "== " and " ({{Sprache|Deutsch}}) ==".
+
+The section heading pattern can be defined by the regular expression:
+    `== [\w]+ \({{Sprache\|Deutsch}}\) ==`
+
+- `== `: Matches the first surrounding literal string "== ".
+
+- `[\w]+`: Matches one or more word characters (letters, digits, and underscores).
+  This part of the pattern will match the word whose definition follows this heading.
+  
+- ` \({{Sprache\|Deutsch}}\) `: Matches the literal string " ({{Sprache|Deutsch}}) ".
+  The `\(` and `\)` are used to match the literal parentheses characters, `\|` matches the literal pipe command
+  and `{{Sprache\|Deutsch}}` matches the exact string "{{Sprache|Deutsch}}".
+
+- `==`: Matches the last surrounding literal string "=="
+
+Any regex broken part can be surrounded by the parentheses `()` creating a capturing group,
+meaning whatever matches this part of the pattern will be captured for later use.
+
+
 # References
 
 ## MediaWiki API
@@ -19,6 +42,14 @@ import os
 import re
 import sys
 import requests
+from time import time
+
+
+# Define section heading pattern by means of regex and format() placeholder:
+# - the empty curly braces placeholder `{}` will be replaced by the word whose definition follows the heading.
+# - `\({{{{Sprache\|Deutsch}}}}\)` uses `\(`, `\|` and `\)` regex with `{{{{` and `}}}}` format() escaping
+#   to match the exact string "{{Sprache|Deutsch}}".
+WIKITEXT_SECTION_HEAD_TEMPLATE = r'== {} \({{{{Sprache\|Deutsch}}}}\) =='
 
 
 class WiktiDs:
@@ -28,13 +59,6 @@ class WiktiDs:
 
     # MediaWiki German Wiktionary dump
     WIKTIONARY_PAGES = r'ds\dewiktionary-20240701-pages-articles.xml'  # 58.226.026 lines
-
-    # In German Wiktionary dump, the title of a word entry section has the pattern:
-    #   '== <word> ({{Sprache|Deutsch}}) =='
-    # To define a regex pattern, it is required to escape some characters in this way:
-    #   '.*== <word> \({{Sprache\|Deutsch}}\) ==.*'
-    # Finally, formatting the above string requires curly braces '{}' escaping
-    WIKITEXT_TITLE_PATTERN = r'== {} \({{{{Sprache\|Deutsch}}}}\) =='
 
     def __init__(self, online=False):
         self.wikti_pages = None
@@ -63,8 +87,13 @@ class WiktiDs:
             self.wikti_pages_idx.close()
 
     def make_ds_index(self, file_name, index_file_name):
-        WIKITEXT_SEARCH_PATTERN = r'.*== ([\w]+) \({{Sprache\|Deutsch}}\) ==.*'
-        search_pattern = '.*' + WiktiDs.WIKITEXT_TITLE_PATTERN.format(r'([\w]+)') + '.*'
+        """Parsed 58226026 lines in 38.40424108505249 s"""
+        # Define the section heading pattern:
+        # - `[\w]+` matches the word whose definition follows its section heading.
+        #   The parentheses () around [\w]+ create a matching group.
+        # - `.*`: Matches any character (except for line terminators) zero or more times.
+        #   This part of the pattern will match everything before and after the specific patterns.
+        section_head_search_pattern = '.*' + WIKITEXT_SECTION_HEAD_TEMPLATE.format(r'([\w]+)') + '.*'
         print(f'Making index file: {index_file_name}')
         # Check line ending size of input file:
         # computing the offset of a line in a text file,
@@ -80,23 +109,25 @@ class WiktiDs:
                     line_ending_extra_sz = 1
                 break
         # Parse input file and create its index
+        time_start = time()
         with open(file_name, 'r', encoding='utf-8') as file, \
                 open(index_file_name, 'w', encoding='utf-8') as index_file:
             offset = 0
             linen = 0
             for line in file:
-                if linen % 10000 == 0:
+                if linen % 500000 == 0:
                     # Use sys.stdout.write() instead of print()
                     # as a workaround to fix '\r' display in VS Code terminal
                     sys.stdout.write(f'Parsed {linen} lines\r')
                 linen += 1
                 # Search the wikitext page title in the current line
-                match = re.match(search_pattern, line)
+                match = re.match(section_head_search_pattern, line)
                 if match:
                     # append the offset to the index
                     index_file.writelines(f'{match.group(1)},{offset}\n')
                 offset += len(line.encode('utf-8')) + line_ending_extra_sz
-        print(f'Parsed {linen} lines')
+        time_elapsed = time() - time_start
+        print(f'Parsed {linen} lines in {time_elapsed} s')
 
     def get_wikitext_from_ds(self, search_word):
         line_number = -1
@@ -119,11 +150,14 @@ class WiktiDs:
         # Then seek to the beginning of the search word entry section
         self.wikti_pages.seek(line_number)
 
+        # Define the section heading pattern for the searching word
+        # removing regex '\' escape character.
+        section_head_pattern = WIKITEXT_SECTION_HEAD_TEMPLATE.format(search_word).replace('\\', '')
+
         # Extract wikitext from the word section
-        section_title = WiktiDs.WIKITEXT_TITLE_PATTERN.format(search_word).replace('\\', '')
         first_section_line = self.wikti_pages.readline()
         # Remove everything from the beginning of the first line to section title
-        section_line = re.sub(r'^.*?' + re.escape(section_title), section_title, first_section_line)
+        section_line = re.sub(r'^.*?' + re.escape(section_head_pattern), section_head_pattern, first_section_line)
         wikitext = ''
         while True:
             end_text_position = section_line.find('</text>')
