@@ -45,6 +45,9 @@ import requests
 from time import time
 
 
+# MediaWiki German Wiktionary dump
+WIKTIONARY_PAGES_DUMP = r'ds\dewiktionary-20240701-pages-articles.xml'  # 58.226.026 lines
+
 # Define section heading pattern by means of regex and format() placeholder:
 # - the empty curly braces placeholder `{}` will be replaced by the word whose definition follows the heading.
 # - `\({{{{Sprache\|Deutsch}}}}\)` uses `\(`, `\|` and `\)` regex with `{{{{` and `}}}}` format() escaping
@@ -57,27 +60,27 @@ class WiktiDs:
     # MediaWiki German Wiktionary API Endpoint
     WIKTI_API_URL = "https://de.wiktionary.org/w/api.php"
 
-    # MediaWiki German Wiktionary dump
-    WIKTIONARY_PAGES = r'ds\dewiktionary-20240701-pages-articles.xml'  # 58.226.026 lines
-
     def __init__(self, online=False):
         self.wikti_pages = None
         self.wikti_pages_idx = None
         self.wikti_pages_cache = {}
         if online:
+            self.wikti_pages_dump_name = ''
+            self.wiktionary_index_file_name = ''
             self.get_wikitext = self.get_wikitext_from_web
             return
+        self.wikti_pages_dump_name = WIKTIONARY_PAGES_DUMP
         self.get_wikitext = self.get_wikitext_from_ds
-        wiktionary_basename, wiktionary_ext = os.path.splitext(WiktiDs.WIKTIONARY_PAGES)
-        wiktionary_index_file_name = wiktionary_basename + '-index.csv'
+        wiktionary_basename, wiktionary_ext = os.path.splitext(self.wikti_pages_dump_name)
+        self.wiktionary_index_file_name = wiktionary_basename + '-index.csv'
         try:
-            self.wikti_pages_idx = open(wiktionary_index_file_name, 'r', encoding='utf-8')
+            self.wikti_pages_idx = open(self.wiktionary_index_file_name, 'r', encoding='utf-8')
         except FileNotFoundError:
             print('Index file not found')
-            self.make_ds_index(WiktiDs.WIKTIONARY_PAGES, wiktionary_index_file_name)
+            self.make_ds_index(self.wikti_pages_dump_name, self.wiktionary_index_file_name)
             # Try again to open index file
-            self.wikti_pages_idx = open(wiktionary_index_file_name, 'r', encoding='utf-8')
-        self.wikti_pages = open(WiktiDs.WIKTIONARY_PAGES, 'r', encoding='utf-8')
+            self.wikti_pages_idx = open(self.wiktionary_index_file_name, 'r', encoding='utf-8')
+        self.wikti_pages = open(self.wikti_pages_dump_name, 'r', encoding='utf-8')
 
     def __del__(self):
         # print('Delete WiktiDs class')
@@ -204,4 +207,54 @@ class WiktiDs:
 
 
 if __name__ == '__main__':
-    pass
+    print('Show performance results searching the first and last words in Wiktionary pages dump')
+    ds = WiktiDs()
+    # Get the first and last words in index file
+    first_line = ''
+    last_line = ''
+    with open(ds.wiktionary_index_file_name, 'r', encoding='utf-8') as index_file:
+        for line in index_file:
+            if len(first_line) == 0:
+                first_line = line
+            last_line = line
+    first_word = first_line.rstrip().split(',')[0]
+    last_word = last_line.rstrip().split(',')[0]
+
+    print(f'Get first word "{first_word}" wikitext:')  # 0.001001119613647461 s
+    time_start = time()
+    wikitext = ds.get_wikitext(first_word)
+    time_elapsed = time() - time_start
+    if wikitext:
+        print(f'\tTime: {time_elapsed} s')
+    else:
+        print('\tNot found!')
+
+    print(f'Get last word "{last_word}" wikitext:')  # 0.42599916458129883 s
+    time_start = time()
+    wikitext = ds.get_wikitext(last_word)
+    time_elapsed = time() - time_start
+    if wikitext:
+        print(f'\tTime: {time_elapsed} s')
+    else:
+        print('\tNot found!')
+
+    print('Show performance results searching online')
+    online_wiktionary = WiktiDs(True)
+
+    print(f'Get first word "{first_word}" wikitext on line:')  # 0.49244213104248047 s
+    time_start = time()
+    wikitext = online_wiktionary.get_wikitext(first_word)
+    time_elapsed = time() - time_start
+    if wikitext:
+        print(f'\tTime: {time_elapsed} s')
+    else:
+        print('\tNot found!')
+
+    print(f'Get last word "{last_word}" wikitext on line:')  # 0.41349339485168457 s
+    time_start = time()
+    wikitext = online_wiktionary.get_wikitext(last_word)
+    time_elapsed = time() - time_start
+    if wikitext:
+        print(f'\tTime: {time_elapsed} s')
+    else:
+        print('\tNot found!')
