@@ -33,6 +33,28 @@ The Parser returns definition and inflection from the Wikitext of the searched w
 # Requirements
 
 
+# WARNING for windows users: Enable UTF-8 support in the Window terminal
+On macOS and Linux, UTF-8 is the standard encoding.
+But Windows still uses legacy encoding (e.g. cp1252, cp932, etc...) as system encoding.
+
+Python works very well about file names, but the legacy system encoding is used for
+the default encoding of text files, pipes and console IO (i.e. Window terminal).
+
+Adding `encoding="utf-8"` option to the function `open()` solves the issue for file read / write, e.g.:
+```python
+    with open(file_name, 'r', encoding='utf-8') as file:
+        # do something with file
+```
+
+Setting the environment variable 
+```
+    PYTHONUTF8=1 
+```
+solves the console IO issue too.
+
+See also [Python: Use the UTF-8 mode on Windows](https://dev.to/methane/python-use-utf-8-mode-on-windows-212i)
+
+
 # References
 
 ## German Wiktionary Wikitext Syntax and Keywords
