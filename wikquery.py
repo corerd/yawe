@@ -1,16 +1,18 @@
 
 """Query German Wiktionary
 """
+import os
 from wikparse import Wiktionary
 
 
 def dump_wikitext(wiktentry):
     """Store WikiText to a file whose name is wikitext_<search_term>.txt
     """
-    wikitext_file_name = f'wikitext_{wiktentry.term}.txt'
-    with open(wikitext_file_name, 'w', encoding="utf-8") as wikitext_file:
+    script_full_path = os.path.realpath(__file__)
+    wikitext_file_path = os.path.join(os.path.dirname(script_full_path), f'wikitext_{wiktentry.term}.txt')
+    with open(wikitext_file_path, 'w', encoding="utf-8") as wikitext_file:
         wikitext_file.write(wiktentry.wikitext)
-    return wikitext_file_name
+    return wikitext_file_path
 
 
 def show(wiktentry):

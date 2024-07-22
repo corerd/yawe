@@ -15,7 +15,6 @@ Wikitext Help Main Page: https://en.wikipedia.org/wiki/Help:Wikitext
 - Deflection tables for noun, verb, adjective, pronoun: https://de.wiktionary.org/wiki/Hilfe:Flexionstabellen
 """
 import wikitextparser as wtp
-import os.path
 import re
 from collections import namedtuple
 from wikxtract import WiktiDs

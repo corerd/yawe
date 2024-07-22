@@ -65,22 +65,23 @@ class WiktiDs:
         self.wikti_pages_idx = None
         self.wikti_pages_cache = {}
         if online:
-            self.wikti_pages_dump_name = ''
-            self.wiktionary_index_file_name = ''
             self.get_wikitext = self.get_wikitext_from_web
+            self.wikti_pages_articles_path = ''
+            self.wiktionary_index_path = ''
             return
-        self.wikti_pages_dump_name = WIKTIONARY_PAGES_DUMP
         self.get_wikitext = self.get_wikitext_from_ds
-        wiktionary_basename, wiktionary_ext = os.path.splitext(self.wikti_pages_dump_name)
-        self.wiktionary_index_file_name = wiktionary_basename + '-index.csv'
+        script_full_path = os.path.realpath(__file__)
+        self.wikti_pages_articles_path = os.path.join(os.path.dirname(script_full_path), WIKTIONARY_PAGES_DUMP)
+        wiktionary_basename, wiktionary_ext = os.path.splitext(self.wikti_pages_articles_path)
+        self.wiktionary_index_path = wiktionary_basename + '-index.csv'
         try:
-            self.wikti_pages_idx = open(self.wiktionary_index_file_name, 'r', encoding='utf-8')
+            self.wikti_pages_idx = open(self.wiktionary_index_path, 'r', encoding='utf-8')
         except FileNotFoundError:
             print('Index file not found')
-            self.make_ds_index(self.wikti_pages_dump_name, self.wiktionary_index_file_name)
+            self.make_ds_index(self.wikti_pages_articles_path, self.wiktionary_index_path)
             # Try again to open index file
-            self.wikti_pages_idx = open(self.wiktionary_index_file_name, 'r', encoding='utf-8')
-        self.wikti_pages = open(self.wikti_pages_dump_name, 'r', encoding='utf-8')
+            self.wikti_pages_idx = open(self.wiktionary_index_path, 'r', encoding='utf-8')
+        self.wikti_pages = open(self.wikti_pages_articles_path, 'r', encoding='utf-8')
 
     def __del__(self):
         # print('Delete WiktiDs class')
@@ -212,7 +213,7 @@ if __name__ == '__main__':
     # Get the first and last words in index file
     first_line = ''
     last_line = ''
-    with open(ds.wiktionary_index_file_name, 'r', encoding='utf-8') as index_file:
+    with open(ds.wiktionary_index_path, 'r', encoding='utf-8') as index_file:
         for line in index_file:
             if len(first_line) == 0:
                 first_line = line
