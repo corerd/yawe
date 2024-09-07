@@ -133,7 +133,36 @@ class WiktiDs:
         time_elapsed = time() - time_start
         print(f'Parsed {linen} lines in {time_elapsed} s')
 
+    def fetch_wikitext_from_ds(self, term, line_number):
+        """Return the Wikitext corresponding to term
+        in the local Data Store starting from line_number
+        """
+        # Then seek to the beginning of the search word entry section
+        self.wikti_pages.seek(line_number)
+
+        # Define the section heading pattern for the searching word
+        # removing regex '\' escape character.
+        section_head_pattern = WIKITEXT_SECTION_HEAD_TEMPLATE.format(term).replace('\\', '')
+
+        # Extract wikitext from the word section
+        first_section_line = self.wikti_pages.readline()
+        # Remove everything from the beginning of the first line to section title
+        section_line = re.sub(r'^.*?' + re.escape(section_head_pattern), section_head_pattern, first_section_line)
+        wikitext = ''
+        while True:
+            end_text_position = section_line.find('</text>')
+            if end_text_position > 0:
+                wikitext = wikitext + section_line[:end_text_position]
+                break
+            wikitext = wikitext + section_line
+            section_line = self.wikti_pages.readline()
+        return wikitext
+
     def get_wikitext_from_ds(self, search_word):
+        """Search the given word in the local Data Store
+        returning the corresponding Wikitext markup language.
+        The search is case sensitive.
+        """
         line_number = -1
         # First search the index cache
         try:
@@ -151,26 +180,9 @@ class WiktiDs:
         if line_number < 0:
             # Not found
             return None
-        # Then seek to the beginning of the search word entry section
-        self.wikti_pages.seek(line_number)
-
-        # Define the section heading pattern for the searching word
-        # removing regex '\' escape character.
-        section_head_pattern = WIKITEXT_SECTION_HEAD_TEMPLATE.format(search_word).replace('\\', '')
-
-        # Extract wikitext from the word section
-        first_section_line = self.wikti_pages.readline()
-        # Remove everything from the beginning of the first line to section title
-        section_line = re.sub(r'^.*?' + re.escape(section_head_pattern), section_head_pattern, first_section_line)
-        wikitext = ''
-        while True:
-            end_text_position = section_line.find('</text>')
-            if end_text_position > 0:
-                wikitext = wikitext + section_line[:end_text_position]
-                break
-            wikitext = wikitext + section_line
-            section_line = self.wikti_pages.readline()
-        return wikitext
+        # Then return the Wikitext corresponding to search_word  
+        # in the local Data Store starting from line_number
+        return self.fetch_wikitext_from_ds(search_word, line_number)
 
     def get_wikitext_from_web(self, search_word):
         """Search Wiktionary for the given word using MediaWiki Action API and requests library,
