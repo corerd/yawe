@@ -16,9 +16,67 @@ Wikitext Help Main Page: https://en.wikipedia.org/wiki/Help:Wikitext
 """
 import wikitextparser as wtp
 import re
+import sys
 from collections import namedtuple
 from wikxtract import WiktiDs
 
+
+"""Categories found in 780117 terms:
+Substantiv
+Personalpronomen
+Verb
+Adjektiv
+Abkürzung
+Adverb
+Zahlzeichen
+Deklinierte Form
+Partikel
+Indefinitpronomen
+Präposition
+Demonstrativpronomen
+Interjektion
+Temporaladverb
+Konjugierte Form
+Kontraktion
+Grußformel
+Subjunktion
+Konjunktion
+Numerale
+Onomatopoetikum
+Artikel
+Eigenname
+Pronomen
+Antwortpartikel
+Gradpartikel
+Partizip II
+Fokuspartikel
+Reflexivpronomen
+Komparativ
+Konjunktionaladverb
+Pronominaladverb
+Relativpronomen
+Interrogativpronomen
+Modaladverb
+Possessivpronomen
+Lokaladverb
+Modalpartikel
+Toponym
+Negationspartikel
+Partizip I
+Präfix
+Interrogativadverb
+Reziprokpronomen
+Redewendung
+Nachname
+Erweiterter Infinitiv
+Adjektiv
+Buchstabe
+Postposition
+Straßenname
+Superlativ
+Dekliniertes Gerundivum
+Wortverbindung
+"""
 
 class Wiktionary:
     """The WikiTextParser package is used to parse WikiText.
@@ -44,6 +102,29 @@ class Wiktionary:
 
     def __init__(self, online=False):
         self.ds = WiktiDs(online)
+
+    def get_category_list(self):
+        category_list = []
+        with open(self.ds.wiktionary_index_path, 'r', encoding='utf-8') as index_file:
+            linen = 0
+            for line in index_file:
+                if linen % 5000 == 0:
+                    # Use sys.stdout.write() instead of print()
+                    # as a workaround to fix '\r' display in VS Code terminal
+                    sys.stdout.write(f'Parsed {linen} lines\r')
+                linen += 1
+
+                term, line_number = line.rstrip().split(',')
+                line_number = int(line_number)
+                wikitext = self.ds.fetch_wikitext_from_ds(term, line_number)
+                if wikitext:
+                    wikitext_parsed = wtp.parse(wikitext)
+                    root_word, category = self.get_header(wikitext_parsed)
+                    if len(category) > 0:
+                        if category not in category_list:
+                            category_list.append(category)
+        print(f'Parsed {linen} lines')
+        return category_list
 
     def query(self, term):
         root_word = ''
@@ -114,4 +195,7 @@ class Wiktionary:
 
 
 if __name__ == '__main__':
-    pass
+    wiki = Wiktionary()
+    category_list = wiki.get_category_list()
+    for cat in category_list:
+        print(cat)
