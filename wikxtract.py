@@ -1,24 +1,54 @@
 """Look up a word in the Wiktionary, then fetch and
 return the Wikitext of the corresponding page.
 
-MediaWiki Action API provides a means to read and write content of a MediaWiki wiki.
-It is structured in modules that can be extended by extensions, so they can differ from wiki to wiki.
+The structure and formatting of Each MediaWiki wiki page content is specified
+in a markup language called Wikitext, also known as wiki markup or Wikicode.
 
-This script interfaces with the German Wiktionary API
+Its syntax is uniq but any language Wiktionary defines the structure of their pages.
+This script parse Wikitext from the German Wiktionary.
 
 
-# Searching for a word definition
-In the German Wiktionary, each word definition belongs to a section with the wikitext heading:
-    == word ({{Sprache|Deutsch}}) ==
-i.e. the word whose definition follows is surrounded by "== " and " ({{Sprache|Deutsch}}) ==".
+# The German Wiktionary structure
+In the body of a lemma definition, Wikitext provides six levels of division or sectioning.
+The = through ====== markup are headings for the sections with which they are associated:
+= Heading 1 =
+== Heading 2 ==
+=== Heading 3 ===
+==== Heading 4 ====
+===== Heading 5 =====
+====== Heading 6 ======
 
-The section heading pattern can be defined by the regular expression:
+The level 1 heading is styled as the lemma title and is not used within a definition.
+
+The structure of a German Wiktionary lemma definition consists of at least 2 sections:
+- A uniq `head` (`Der Kopf`), that is a level 2 heading at very top which specifies the language to which the lemma belongs.
+  Example for the German lemma Haus: == Haus ({{Sprache|Deutsch}}) ==
+- Next is the `middle section` (`Der Mittelteil`) where the inflection tables and most of the text modules are located.
+  This section follows a level 3 heading as: === {{Wortart|Substantiv|Deutsch}}, {{n}} ===
+  {{Wortart|abc|xyz}} ensures that the lemma is sorted into the category for the part of speech (`die Wortart`) abc in the language xyz.
+  Category refers to noun, verb, adjective, etc.
+  (Haus is thus sorted into the category:Noun (`Substantiv`) into the German (`Deutsch`) categories).
+  The specification {{n}} does not assign the lemma to a category, but the n simply indicates that in the example case Haus is neuter.
+  Accordingly, there is {{f}} for feminine nouns and {{m}} for masculine nouns.
+- Inside the vast majority of lemma definitions there is also the `translation section` (`Der Übersetzungsabschnitt`), which includes the translations,
+  but also the references and possibly the sources and similarities module and one or more navigation bars.
+  This optional section follows a level 4 heading as: ==== {{Übersetzungen}} ====
+
+If the lemma has more than one definition, then new middle sections are added accordingly,
+each with its optional translation section.
+
+## Regular expression template for Level 2 heading
+In the German Wiktionary, the first section in a lemma definition starts with the Wikitext level 2 heading:
+    == lemma ({{Sprache|Deutsch}}) ==
+i.e. the lemma whose definition follows is surrounded by "== " and " ({{Sprache|Deutsch}}) ==".
+
+The head section heading pattern can be defined by the regular expression:
     `== [\w]+ \({{Sprache\|Deutsch}}\) ==`
 
 - `== `: Matches the first surrounding literal string "== ".
 
 - `[\w]+`: Matches one or more word characters (letters, digits, and underscores).
-  This part of the pattern will match the word whose definition follows this heading.
+  This part of the pattern will match the lemma whose definition follows this heading.
   
 - ` \({{Sprache\|Deutsch}}\) `: Matches the literal string " ({{Sprache|Deutsch}}) ".
   The `\(` and `\)` are used to match the literal parentheses characters, `\|` matches the literal pipe command
@@ -30,7 +60,20 @@ Any regex broken part can be surrounded by the parentheses `()` creating a captu
 meaning whatever matches this part of the pattern will be captured for later use.
 
 
+# MediaWiki APIs
+MediaWiki Action API provides a means to read and write content of a MediaWiki wiki.
+It is structured in modules that can be extended by extensions, so they can differ from wiki to wiki.
+
+This script interfaces with the German Wiktionary API
+
+
 # References
+Wikitext Help Main Page: https://en.wikipedia.org/wiki/Help:Wikitext
+
+## German Wiktionary Wikitext Syntax and Keywords
+- Help Main Page: https://de.wiktionary.org/wiki/Wiktionary:Hilfe
+- Basic structure for dictionary entries: https://de.wiktionary.org/wiki/Hilfe:Formatvorlage
+- Deflection tables for noun, verb, adjective, pronoun: https://de.wiktionary.org/wiki/Hilfe:Flexionstabellen
 
 ## MediaWiki API
 Main page: https://www.mediawiki.org/wiki/API
@@ -48,11 +91,11 @@ from time import time
 # MediaWiki German Wiktionary dump
 WIKTIONARY_PAGES_DUMP = r'ds\dewiktionary-20240701-pages-articles.xml'  # 58.226.026 lines
 
-# Define section heading pattern by means of regex and format() placeholder:
-# - the empty curly braces placeholder `{}` will be replaced by the word whose definition follows the heading.
+# Define lemma head pattern by means of regex and python format() placeholder:
+# - the empty curly braces placeholder `{}` will be replaced by the lemma whose definition follows the heading.
 # - `\({{{{Sprache\|Deutsch}}}}\)` uses `\(`, `\|` and `\)` regex with `{{{{` and `}}}}` format() escaping
 #   to match the exact string "{{Sprache|Deutsch}}".
-WIKITEXT_SECTION_HEAD_TEMPLATE = r'== {} \({{{{Sprache\|Deutsch}}}}\) =='
+WIKITEXT_LEMMA_HEAD_TEMPLATE = r'== {} \({{{{Sprache\|Deutsch}}}}\) =='
 
 
 class WiktiDs:
@@ -92,12 +135,12 @@ class WiktiDs:
 
     def make_ds_index(self, file_name, index_file_name):
         """Parsed 58226026 lines in 38.40424108505249 s"""
-        # Define the section heading pattern:
-        # - `[\w]+` matches the word whose definition follows its section heading.
+        # Define the lemma head pattern:
+        # - `[\w]+` matches the lemma whose definition follows its section heading.
         #   The parentheses () around [\w]+ create a matching group.
         # - `.*`: Matches any character (except for line terminators) zero or more times.
         #   This part of the pattern will match everything before and after the specific patterns.
-        section_head_search_pattern = '.*' + WIKITEXT_SECTION_HEAD_TEMPLATE.format(r'([\w]+)') + '.*'
+        lemma_head_pattern = '.*' + WIKITEXT_LEMMA_HEAD_TEMPLATE.format(r'([\w]+)') + '.*'
         print(f'Making index file: {index_file_name}')
         # Check line ending size of input file:
         # computing the offset of a line in a text file,
@@ -125,7 +168,7 @@ class WiktiDs:
                     sys.stdout.write(f'Parsed {linen} lines\r')
                 linen += 1
                 # Search the wikitext page title in the current line
-                match = re.match(section_head_search_pattern, line)
+                match = re.match(lemma_head_pattern, line)
                 if match:
                     # append the offset to the index
                     index_file.writelines(f'{match.group(1)},{offset}\n')
@@ -133,27 +176,28 @@ class WiktiDs:
         time_elapsed = time() - time_start
         print(f'Parsed {linen} lines in {time_elapsed} s')
 
-    def fetch_wikitext_from_ds(self, term, line_number):
-        """Return the Wikitext corresponding to term
-        in the local Data Store starting from line_number
+    def fetch_wikitext_from_ds(self, lemma, line_number):
+        """Return Wikitext between the local Data Store line number
+        and the end of lemma definitions.
         """
-        # Then seek to the beginning of the search word entry section
-        self.wikti_pages.seek(line_number)
-
-        # Define the section heading pattern for the searching word
+        # define the lemma title pattern
         # removing regex '\' escape character.
-        section_head_pattern = WIKITEXT_SECTION_HEAD_TEMPLATE.format(term).replace('\\', '')
+        lemma_head_pattern = WIKITEXT_LEMMA_HEAD_TEMPLATE.format(lemma).replace('\\', '')
 
-        # Extract wikitext from the word section
+        # Wikitext lemma definitions are found between <text>..</text> XML tags in the local Data Store.
+        # line_number points to the line containing the lemma title inside <text>..</text> tags.
+        self.wikti_pages.seek(line_number)
         first_section_line = self.wikti_pages.readline()
-        # Remove everything from the beginning of the first line to section title
-        section_line = re.sub(r'^.*?' + re.escape(section_head_pattern), section_head_pattern, first_section_line)
+        # Remove everything from the beginning of the first line to lemma title
+        section_line = re.sub(r'^.*?' + re.escape(lemma_head_pattern), lemma_head_pattern, first_section_line)
         wikitext = ''
         while True:
-            end_text_position = section_line.find('</text>')
+            end_text_position = section_line.find('</text>')  # search the end of lemma definitions
             if end_text_position > 0:
+                # found the end of lemma definitions
                 wikitext = wikitext + section_line[:end_text_position]
                 break
+            # else continue extracting
             wikitext = wikitext + section_line
             section_line = self.wikti_pages.readline()
         return wikitext

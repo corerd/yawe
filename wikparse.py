@@ -13,6 +13,11 @@ Wikitext Help Main Page: https://en.wikipedia.org/wiki/Help:Wikitext
 - Help Main Page: https://de.wiktionary.org/wiki/Wiktionary:Hilfe
 - Basic structure for dictionary entries: https://de.wiktionary.org/wiki/Hilfe:Formatvorlage
 - Deflection tables for noun, verb, adjective, pronoun: https://de.wiktionary.org/wiki/Hilfe:Flexionstabellen
+
+## Italian Wiktionary Wikitext Syntax and Keywords
+As a comparison, here are the specifications of Italian Wiktionary pages format:
+- Help Main Page: https://it.wiktionary.org/wiki/Pagina_principale
+- Basic structure of Wiktionary pages: https://it.wiktionary.org/wiki/Wikizionario:Manuale_di_stile
 """
 import wikitextparser as wtp
 import re

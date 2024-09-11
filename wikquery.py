@@ -19,6 +19,8 @@ def show(wiktentry):
     if wiktentry.wikitext is None:
         print(f'Search term "{wiktentry.term}" not found')
         return
+    # wikitext_file = dump_wikitext(wiktentry)  # debug
+    # print(f'DEBUG: WikiText saved in: {wikitext_file}')
     if len(wiktentry.root_word) == 0:
         print(f'Root of "{wiktentry.term}" not found')
         return
