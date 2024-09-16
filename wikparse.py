@@ -83,6 +83,70 @@ Dekliniertes Gerundivum
 Wortverbindung
 """
 
+
+# Section descriptor
+SECTION_DATA = namedtuple('SECTION_DATA', ['level', 'header', 'body'])
+
+
+def wiki_headers_factory(string):
+    """Iterate through the wikitext string in pure python
+    to find patterns that match r'(==+.*?==+)' then return
+    the tuple (header_start_position, header_end_position, level) one at a time.
+
+    It looks for sequences of == characters, followed by any characters
+    until another sequence of == characters is found.
+    Then collects these matches as an iterable object.
+
+    See: https://stackoverflow.com/a/231855
+    """
+    cursor = 0
+    while cursor < len(string):
+        if string[cursor] == '=' and cursor + 1 < len(string) and string[cursor + 1] == '=':
+            start = cursor
+            level = 0
+            while cursor < len(string) and string[cursor] == '=':
+                cursor += 1
+                level += 1
+            while cursor < len(string) and string[cursor] != '=':
+                cursor += 1
+            while cursor < len(string) and string[cursor] == '=':
+                cursor += 1
+            end = cursor
+            yield (start, end, level)
+        else:
+            cursor += 1
+
+
+def wiki_sections_factory(wikitext):
+    """Iterate through wikitext to find division sections
+    returning them one at a time after parsing wikitext
+    """
+    matching_headers = wiki_headers_factory(wikitext)
+    # get first header
+    first_match = matching_headers.__next__()
+    if not first_match:
+        return None
+    current_level = first_match[2]
+    current_header = wikitext[first_match[0]:first_match[1]]
+    # section body is the text between
+    # the and of current header and the start of next
+    body_start = first_match[1]
+    # look forward headers
+    for next_match in matching_headers:
+        next_header = wikitext[next_match[0]:next_match[1]]
+        if next_header[4] == '=':
+            # merge sections with eheader level 5 or more
+            # in the current section
+            continue
+        body = wikitext[body_start:next_match[0]]
+        yield SECTION_DATA(current_level, current_header, wtp.parse(body))
+        current_level = next_match[2]
+        current_header = next_header
+        body_start = next_match[1]
+    body = wikitext[body_start:]
+    yield SECTION_DATA(current_level, current_header, wtp.parse(body))
+
+
 class Wiktionary:
     """The WikiTextParser package is used to parse WikiText.
 
@@ -132,6 +196,32 @@ class Wiktionary:
         return category_list
 
     def query(self, term):
+        root_word = ''
+        category = ''
+        inflection_table = ()
+        wikitext = self.ds.get_wikitext(term)
+        if wikitext:
+            head_level = 2
+            for section in wiki_sections_factory(wikitext):
+                if section.level < head_level:
+                    # skip
+                    continue
+                if section.level == head_level:
+                    if len(root_word) == 0:
+                        match = re.match(r'==\s*(\w+) \({{Sprache\|Deutsch}}\).*', section.header)
+                        if match:
+                            root_word = match.group(1)
+                     # else something goes wrong
+                     # because only one head_level must be present in a lemma description
+                elif section.level == head_level+1:
+                    match = re.match(r'===\s* {{Wortart\|([\w\s]+)\|Deutsch}}.*', section.header)
+                    if match:
+                        category = match.group(1)
+                        inflection_table = self.get_inflection_table(category, section.body)
+                    break
+        return Wiktionary.ENTRY(term, wikitext, root_word, category, inflection_table)
+
+    def query_old(self, term):
         root_word = ''
         category = ''
         inflection_table = ()

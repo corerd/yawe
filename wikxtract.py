@@ -22,9 +22,11 @@ The level 1 heading is styled as the lemma title and is not used within a defini
 
 The structure of a German Wiktionary lemma definition consists of at least 2 sections:
 - A uniq `head` (`Der Kopf`), that is a level 2 heading at very top which specifies the language to which the lemma belongs.
-  Example for the German lemma Haus: == Haus ({{Sprache|Deutsch}}) ==
+  Example for the German lemma Haus:
+    == Haus ({{Sprache|Deutsch}}) ==
 - Next is the `middle section` (`Der Mittelteil`) where the inflection tables and most of the text modules are located.
-  This section follows a level 3 heading as: === {{Wortart|Substantiv|Deutsch}}, {{n}} ===
+  This section follows a level 3 heading as:
+    === {{Wortart|Substantiv|Deutsch}}, {{n}} ===
   {{Wortart|abc|xyz}} ensures that the lemma is sorted into the category for the part of speech (`die Wortart`) abc in the language xyz.
   Category refers to noun, verb, adjective, etc.
   (Haus is thus sorted into the category:Noun (`Substantiv`) into the German (`Deutsch`) categories).
@@ -32,7 +34,8 @@ The structure of a German Wiktionary lemma definition consists of at least 2 sec
   Accordingly, there is {{f}} for feminine nouns and {{m}} for masculine nouns.
 - Inside the vast majority of lemma definitions there is also the `translation section` (`Der Übersetzungsabschnitt`), which includes the translations,
   but also the references and possibly the sources and similarities module and one or more navigation bars.
-  This optional section follows a level 4 heading as: ==== {{Übersetzungen}} ====
+  This optional section follows a level 4 heading as:
+    ==== {{Übersetzungen}} ====
 
 If the lemma has more than one definition, then new middle sections are added accordingly,
 each with its optional translation section.
