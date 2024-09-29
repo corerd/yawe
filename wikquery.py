@@ -29,6 +29,10 @@ def show(wiktentry):
         print('Category:', category.name)
         for inflection in category.inflection_table:
             print(f'{inflection.name}: {inflection.value}')
+        if len(category.translations) > 0:
+            print('Translations:')
+            for translation in category.translations:
+                print(f'{translation.lang}: {translation.value}')
         print()
 
 

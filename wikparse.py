@@ -24,7 +24,6 @@ import re
 import sys
 from collections import namedtuple
 from wikxtract import WiktiDs
-from dataclasses import dataclass
 
 
 """Categories found in 780117 terms:
@@ -169,12 +168,24 @@ class Wiktionary:
     LEMMA_CLASS = namedtuple('LEMMA_CLASS', ['type', 'defs'])
     LEMMA_DESC = namedtuple('LEMMA_DESC', ['term', 'wikitext', 'lemma_root', 'lemma_categories'])
     INFLECTION_ITEM = namedtuple('INFLECTION_ITEM', ['name', 'value'])
+    TRANSLATION_ITEM = namedtuple('TRANSLATION_ITEM', ['lang', 'value'])
     ENTRY = namedtuple('ENTRY', ['term', 'wikitext', 'root_word', 'category', 'inflection_table'])
 
-    @dataclass
     class category_desc:
-        name: str = ''
-        inflection_table: tuple = ()
+
+        def __init__(self, name):
+            self.name = name
+            self.inflection_table = ()
+            self.translations = ()
+        
+        def append_inflection_table(self, inflection_item):
+            # TODO filter inflection items
+            self.inflection_table += (inflection_item,)
+
+        def append_translation(self, translation_item):
+            if translation_item.lang in ('en', 'fr', 'it', 'sp'):
+                self.translations += (translation_item,)
+            # ignore othe languages
 
     def __init__(self, online=False):
         self.ds = WiktiDs(online)
@@ -223,27 +234,32 @@ class Wiktionary:
             return None
         # findall returns all non-overlapping matches
         # of the pattern in section header as a list of tuples.
-        category_name = ', '.join(match_list[0])  # Get the first
+        category = self.category_desc(', '.join(match_list[0]))  # the name
         wikitext_parsed = wtp.parse(section.body)
-        inflection_table = ()
         # Parse templates
         for template in wikitext_parsed.templates:
             match  = re.match(r'Deutsch (\w+) Übersicht.*', template.name)
             if match:
                 for argc in range(len(template.arguments)):
                     argv = template.arguments[argc]
-                    inflection_table = inflection_table + (Wiktionary.INFLECTION_ITEM(argv.name, argv.value.rstrip()),)
+                    category.append_inflection_table(Wiktionary.INFLECTION_ITEM(argv.name, argv.value.rstrip()))
         # Parse lists
         for wikilist in wikitext_parsed.get_lists(pattern=r'\*'):
             for list_item in wikilist.items:
                 match  = re.match(r"([\w\s\.]+)'''\[\[(\w+)\]\]'''", list_item)
                 if match:
-                    inflection_table = inflection_table + (Wiktionary.INFLECTION_ITEM(match[1], match[2]),)
-        return self.category_desc(category_name, inflection_table)
+                    category.append_inflection_table(Wiktionary.INFLECTION_ITEM(match[1], match[2]))
+        return category
 
-    def parse_translation(self, section):
-        pass
-    
+    def parse_translation(self, category, section):
+        if section.header != '==== {{Übersetzungen}} ====':
+            return
+        pattern = r"\*{{(\w+)}}: {{Ü\|\w+\|(\w+)}}(?: {{(\w+)}})?"
+        match_list = re.findall(pattern, section.body)
+        if match_list:
+            for match in match_list:
+                category.append_translation(Wiktionary.TRANSLATION_ITEM(match[0], ', '.join(match[1:])))
+            
     def query(self, search_word):
         """Search for a word and return its lemma description"""
         lemma_root = ''
@@ -262,7 +278,9 @@ class Wiktionary:
                         if category:
                             categories += (category,)
                     elif section.level == 4:
-                        self.parse_translation(section)
+                        current_category = len(categories) - 1
+                        if current_category >= 0:
+                            self.parse_translation(categories[current_category], section)
         return Wiktionary.LEMMA_DESC(search_word, word_wikitext, lemma_root, categories)
 
     def query_old(self, term):
@@ -335,6 +353,10 @@ class Wiktionary:
 
 if __name__ == '__main__':
     wiki = Wiktionary()
+
+    wiki.query('Mann')
+    exit(0)
+
     category_list = wiki.get_category_list()
     for cat in category_list:
         print(cat)
