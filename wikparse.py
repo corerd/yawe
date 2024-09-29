@@ -24,6 +24,7 @@ import re
 import sys
 from collections import namedtuple
 from wikxtract import WiktiDs
+from dataclasses import dataclass
 
 
 """Categories found in 780117 terms:
@@ -97,7 +98,8 @@ def wiki_headers_factory(string):
     until another sequence of == characters is found.
     Then collects these matches as an iterable object.
 
-    See: https://stackoverflow.com/a/231855
+    Understand iterables and generators:
+    https://stackoverflow.com/a/231855
     """
     cursor = 0
     while cursor < len(string):
@@ -119,10 +121,10 @@ def wiki_headers_factory(string):
 
 def wiki_sections_factory(wikitext):
     """Iterate through wikitext to find division sections
-    returning them one at a time after parsing wikitext
+    returning them one at a time
     """
     matching_headers = wiki_headers_factory(wikitext)
-    # get first header
+    # get the first header
     first_match = matching_headers.__next__()
     if not first_match:
         return None
@@ -138,13 +140,11 @@ def wiki_sections_factory(wikitext):
             # merge sections with eheader level 5 or more
             # in the current section
             continue
-        body = wikitext[body_start:next_match[0]]
-        yield SECTION_DATA(current_level, current_header, wtp.parse(body))
+        yield SECTION_DATA(current_level, current_header, wikitext[body_start:next_match[0]])
         current_level = next_match[2]
         current_header = next_header
         body_start = next_match[1]
-    body = wikitext[body_start:]
-    yield SECTION_DATA(current_level, current_header, wtp.parse(body))
+    yield SECTION_DATA(current_level, current_header, wikitext[body_start:])
 
 
 class Wiktionary:
@@ -166,8 +166,15 @@ class Wiktionary:
         'Konjugierte Form'  : r"([\w\s\.]+)'''\[\[(\w+)\]\]'''",
         'Deklinierte Form'  : r"([\w\s\.]+)'''\[\[(\w+)\]\]'''"
     }
+    LEMMA_CLASS = namedtuple('LEMMA_CLASS', ['type', 'defs'])
+    LEMMA_DESC = namedtuple('LEMMA_DESC', ['term', 'wikitext', 'lemma_root', 'lemma_categories'])
     INFLECTION_ITEM = namedtuple('INFLECTION_ITEM', ['name', 'value'])
     ENTRY = namedtuple('ENTRY', ['term', 'wikitext', 'root_word', 'category', 'inflection_table'])
+
+    @dataclass
+    class category_desc:
+        name: str = ''
+        inflection_table: tuple = ()
 
     def __init__(self, online=False):
         self.ds = WiktiDs(online)
@@ -195,31 +202,68 @@ class Wiktionary:
         print(f'Parsed {linen} lines')
         return category_list
 
-    def query(self, term):
-        root_word = ''
-        category = ''
+    def parse_head(self, section):
+        """Parse lemma section HEAD
+        returning the root lemma
+        """
+        if not section:
+            return None
+        if section.level != 2:
+            return None
+        # check that the lemma belongs to the German language
+        match = re.match(r'==\s*(\w+) \({{Sprache\|Deutsch}}\).*', section.header)
+        if not match:
+            return None
+        return match.group(1)
+
+    def parse_middle(self, section):
+        middle_header_pattern = r".*?(?:{{Wortart\|([\w\s]+)\|Deutsch}})(?:, {{([fmn]+)}})?(?:, {{Wortart\|([\w\s]+)\|Deutsch}})?.*"
+        match_list = re.findall(middle_header_pattern, section.header)
+        if not match_list:
+            return None
+        # findall returns all non-overlapping matches
+        # of the pattern in section header as a list of tuples.
+        category_name = ', '.join(match_list[0])  # Get the first
+        wikitext_parsed = wtp.parse(section.body)
         inflection_table = ()
-        wikitext = self.ds.get_wikitext(term)
-        if wikitext:
-            head_level = 2
-            for section in wiki_sections_factory(wikitext):
-                if section.level < head_level:
-                    # skip
-                    continue
-                if section.level == head_level:
-                    if len(root_word) == 0:
-                        match = re.match(r'==\s*(\w+) \({{Sprache\|Deutsch}}\).*', section.header)
-                        if match:
-                            root_word = match.group(1)
-                     # else something goes wrong
-                     # because only one head_level must be present in a lemma description
-                elif section.level == head_level+1:
-                    match = re.match(r'===\s* {{Wortart\|([\w\s]+)\|Deutsch}}.*', section.header)
-                    if match:
-                        category = match.group(1)
-                        inflection_table = self.get_inflection_table(category, section.body)
-                    break
-        return Wiktionary.ENTRY(term, wikitext, root_word, category, inflection_table)
+        # Parse templates
+        for template in wikitext_parsed.templates:
+            match  = re.match(r'Deutsch (\w+) Übersicht.*', template.name)
+            if match:
+                for argc in range(len(template.arguments)):
+                    argv = template.arguments[argc]
+                    inflection_table = inflection_table + (Wiktionary.INFLECTION_ITEM(argv.name, argv.value.rstrip()),)
+        # Parse lists
+        for wikilist in wikitext_parsed.get_lists(pattern=r'\*'):
+            for list_item in wikilist.items:
+                match  = re.match(r"([\w\s\.]+)'''\[\[(\w+)\]\]'''", list_item)
+                if match:
+                    inflection_table = inflection_table + (Wiktionary.INFLECTION_ITEM(match[1], match[2]),)
+        return self.category_desc(category_name, inflection_table)
+
+    def parse_translation(self, section):
+        pass
+    
+    def query(self, search_word):
+        """Search for a word and return its lemma description"""
+        lemma_root = ''
+        categories = ()
+        word_wikitext = self.ds.get_wikitext(search_word)
+        if word_wikitext:
+            # split wikitext in lemma description sections
+            sections = wiki_sections_factory(word_wikitext)
+            # the first section of a lemma description must be the HEAD
+            lemma_root = self.parse_head(sections.__next__())
+            if lemma_root:
+                # parse next sections
+                for section in sections:
+                    if section.level == 3:
+                        category = self.parse_middle(section)
+                        if category:
+                            categories += (category,)
+                    elif section.level == 4:
+                        self.parse_translation(section)
+        return Wiktionary.LEMMA_DESC(search_word, word_wikitext, lemma_root, categories)
 
     def query_old(self, term):
         root_word = ''

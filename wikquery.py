@@ -21,19 +21,15 @@ def show(wiktentry):
         return
     # wikitext_file = dump_wikitext(wiktentry)  # debug
     # print(f'DEBUG: WikiText saved in: {wikitext_file}')
-    if len(wiktentry.root_word) == 0:
+    if len(wiktentry.lemma_root) == 0:
         print(f'Root of "{wiktentry.term}" not found')
         return
-    print('Root Word:', wiktentry.root_word)
-    if len(wiktentry.category) == 0:
-        print('Category not found')
-        return
-    print('Category:', wiktentry.category)
-    if len(wiktentry.inflection_table) == 0:
-        print("Inflection_table not found")
-        return
-    for inflection in wiktentry.inflection_table:
-        print(f'{inflection.name}: {inflection.value}')
+    print('Root Word:', wiktentry.lemma_root)
+    for category in wiktentry.lemma_categories:
+        print('Category:', category.name)
+        for inflection in category.inflection_table:
+            print(f'{inflection.name}: {inflection.value}')
+        print()
 
 
 if __name__ == '__main__':
@@ -47,7 +43,7 @@ if __name__ == '__main__':
             break
         entry = wiki.query(user_input)
         show(entry)
-        if entry.wikitext and len(entry.inflection_table) == 0:
+        if entry.wikitext and len(entry.lemma_categories) == 0:
             print(f'WikiText for "{user_input}" exists but not successful parsed.')
             wikitext_file = dump_wikitext(entry)
             print(f'WikiText saved in: {wikitext_file}')
